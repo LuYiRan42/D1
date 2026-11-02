@@ -4,6 +4,7 @@ import sys
 
 SUFFIXES = {".md", ".txt"}
 
+
 def iter_files(root):
     base = Path(root)
     if not base.is_dir():
@@ -13,21 +14,26 @@ def iter_files(root):
         if path.is_file() and path.suffix.lower() in SUFFIXES:
             yield path
 
-def analyze_file(path, top_n=5):
+
+def analyze_file(path, top_n=5, base=None):
     try:
         text = path.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError) as exc:
-        print(f"警告：跳过 {path}（{exc.__class__.__name__}）", file=sys.stderr)
+        print(f"警告：跳过 {path}({exc.__class__.__name__})", file=sys.stderr)
         return None
     words = text.lower().split()
+    pairs = sorted(Counter(words).items(), key=lambda kv: (-kv[1], kv[0]))
+    rel = path.relative_to(base).as_posix() if base else path.as_posix()
     return {
-        "path": path.as_posix(),
+        "path": rel,
         "lines": len(text.splitlines()),
         "words": len(words),
         "chars": len(text),
-        "top_words": Counter(words).most_common(top_n),
+        "top_words": [list(kv) for kv in pairs[:top_n]],
     }
 
+
 def build_index(root, top_n=5):
-    files = [item for p in iter_files(root) if (item := analyze_file(p, top_n))]
+    base = Path(root)
+    files = [item for p in iter_files(root) if (item := analyze_file(p, top_n, base))]
     return {"root": root, "files": files}
