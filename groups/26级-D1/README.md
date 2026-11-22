@@ -102,7 +102,12 @@ python ask.py ask "典型使用场景是什么？" --json
 流程：读 `index.json` → 关键词检索取前 3 行 → 与 `file:line` 一起拼进 Prompt → 调 chat completions
 → 输出答案与来源；**检索零命中时直接回答「文档里没有」，不调用模型**。
 
-接口、错误码与四类错误的实测输出见 [`api.md`](api.md)；评测见 [`eval.md`](eval.md)。
+接口、错误码见 [`api.md`](api.md)；五条错误的实测输出（命令、退出码、stdout/stderr 分栏）见
+[`错误处理记录.md`](错误处理记录.md)；10 条评测见 [`eval.md`](eval.md)。
+
+评测想自己复跑一遍：配好 `LLM_API_KEY` 后在本目录执行 `python tools\wizard.py`，选第 2 步，
+脚本会真调模型把 10 条题重新跑一遍，生成 `eval-filled.md`（表格填好的版本）和 `评测输出.txt`（原始输出）。
+没有 key 时可以先跑 `python tools\check_eval.py eval.md index.json`，只验证「期望出处能不能被检索命中」，不花钱。
 
 ## 评测（测出来的结论）
 
