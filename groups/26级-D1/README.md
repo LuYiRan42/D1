@@ -36,12 +36,14 @@ groups/26级-D1/
 python minisearch.py index docs              # 建索引，写出 index.json
 python minisearch.py search docs python      # 查关键词
 python minisearch.py index docs --top 10     # 每个文件保留 10 个高频词（默认 5）
+python minisearch.py index docs --json       # 给程序读：只打印一个 JSON 对象
+python minisearch.py search docs python --json
 ```
 
 真实输出（`python minisearch.py index docs`）：
 
 ```
-索引 2 个文件 → index.json
+索引 4 个文件 → index.json
 ```
 
 真实输出（`python minisearch.py search docs python`）：
@@ -49,7 +51,26 @@ python minisearch.py index docs --top 10     # 每个文件保留 10 个高频�
 ```
 docs/notes.txt: 2
   python 处理文件
+docs/scope.md: 1
+  - 一个目录（可以有任意层子目录），例如 `python minisearch.py index docs`
 ```
+
+真实输出（`python minisearch.py search docs python --json`）：
+
+```json
+{
+  "command": "search",
+  "root": "docs",
+  "keyword": "python",
+  "count": 2,
+  "hits": [
+    {"path": "docs/notes.txt", "count": 2, "line": "python 处理文件"},
+    {"path": "docs/scope.md", "count": 1, "line": "- 一个目录（可以有任意层子目录），例如 `python minisearch.py index docs`"}
+  ]
+}
+```
+
+`--json` 时 stdout 只有那一个 JSON 对象，提示与警告一律走 stderr；退出码与文本模式相同。
 
 ## W3：ask.py
 
@@ -94,7 +115,7 @@ python tools\wizard.py                          # 1 准备 / 2 评测 / 3 错误
 
 ## 已知限制
 
-- 中文不分词。`words` 按空白切分；`top_words` 里中文条目是整串。`search` 用子串包含，中文能查。
+- 中文不做分词，`top_words` 只到单字：英文/数字按词统计，中文每个字算一条，`words` 仍按空白切分。`search` 用子串包含，中文词组能查。
 - 只索引 `.md` 和 `.txt`，非 UTF-8 文件跳过并在 stderr 警告，不中断。
 - 检索是「中文两字组合 + 命中行数」排序，不是向量检索；换个说法可能搜不到。
 - 每类资料只取前 3 行，答案跨段落时可能漏。

@@ -1,4 +1,4 @@
-﻿"""W3 最小闭环：检索 -> 拼 Prompt -> 调 LLM -> 回答 + 出处。
+"""W3 最小闭环：检索 -> 拼 Prompt -> 调 LLM -> 回答 + 出处。
 
 只依赖 index.json（W2 的产物）和三个环境变量：
     LLM_API_KEY   必填
@@ -29,6 +29,9 @@ SYSTEM_PROMPT = """你是一个只根据资料回答问题的助手。三条硬�
 
 # 中文两字组合里出现这些词就不算关键词，避免「什么」「怎么」把无关行捞出来
 STOP_GRAMS = {"什么", "怎么", "如何", "为什", "哪些", "哪个", "是否", "可以", "请问", "一下", "我们", "他们"}
+
+# 「没装 requests」这条提示只打一次，重试时不重复刷屏
+_WARNED_URLLIB = False
 
 
 class ApiError(Exception):
@@ -113,7 +116,10 @@ def _post_json(url, headers, body, timeout):
         except ValueError:
             return resp.status_code, {}
 
-    print("提示：没装 requests，本次用标准库 urllib；建议 pip install -r requirements.txt", file=sys.stderr)
+    global _WARNED_URLLIB
+    if not _WARNED_URLLIB:
+        print("提示：没装 requests，本次用标准库 urllib；建议 pip install -r requirements.txt", file=sys.stderr)
+        _WARNED_URLLIB = True
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=raw, headers=headers, method="POST")
     try:
@@ -227,7 +233,8 @@ def main(argv=None):
     try:
         data = call_llm(messages)
     except ApiError as exc:
-        print(str(exc), file=sys.stderr)
+        if str(exc):
+            print(str(exc), file=sys.stderr)
         return 1
     latency = time.perf_counter() - started
 

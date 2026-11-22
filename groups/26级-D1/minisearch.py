@@ -14,10 +14,12 @@ def main(argv=None):
     p_index = sub.add_parser("index", help="遍历目录，写出 index.json")
     p_index.add_argument("root", help="要索引的根目录")
     p_index.add_argument("--top", type=int, default=5, help="每个文件保留几个高频词，默认 5")
+    p_index.add_argument("--json", action="store_true", help="用 JSON 打印结果，给程序读")
 
     p_search = sub.add_parser("search", help="在索引里查关键词")
     p_search.add_argument("root", help="建索引时用的那个根目录")
     p_search.add_argument("keyword", help="要查的词")
+    p_search.add_argument("--json", action="store_true", help="用 JSON 打印结果，给程序读")
 
     args = parser.parse_args(argv)
 
@@ -25,7 +27,13 @@ def main(argv=None):
         data = indexer.build_index(args.root, args.top)
         with open("index.json", "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=True)
-        print(f"索引 {len(data['files'])} 个文件 → index.json")
+        if args.json:
+            print(json.dumps(
+                {"command": "index", "root": args.root, "index": "index.json",
+                 "files": len(data["files"])},
+                ensure_ascii=False, indent=2))
+        else:
+            print(f"索引 {len(data['files'])} 个文件 → index.json")
         return 0
 
     if not Path("index.json").exists():
@@ -38,7 +46,14 @@ def main(argv=None):
 
     data = json.loads(Path("index.json").read_text(encoding="utf-8"))
     hits = searcher.search(data, args.keyword)
-    print(searcher.format_hits(hits))
+    if args.json:
+        print(json.dumps(
+            {"command": "search", "root": args.root, "keyword": args.keyword,
+             "count": len(hits),
+             "hits": [{"path": path, "count": n, "line": line} for path, n, line in hits]},
+            ensure_ascii=False, indent=2))
+    else:
+        print(searcher.format_hits(hits))
     return 0 if hits else 1
 
 
