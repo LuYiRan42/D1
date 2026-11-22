@@ -218,6 +218,37 @@ exit=1
 
 ---
 
+## 9. 跨目录：换个工作目录也能搜到（D2 互评指出后加的）
+
+D2 在 `review.md` 里提过：在 `docs/` 子目录里执行 `python ../minisearch.py search ../docs/ python`
+会报「请先运行 index 建立索引」。我们确认属实（原来 `index.json` 是按当前工作目录找的），
+改成按脚本目录找之后补了这一条测试。
+
+**命令**（先 `cd` 到别处，故意不在项目目录里）
+
+```powershell
+cd C:\
+python D:\D1\groups\26级-D1\minisearch.py search docs python
+echo "exit=$LASTEXITCODE"
+```
+
+**期望**：正常命中，且输出里的路径仍是相对形式 `docs/notes.txt: 2`
+
+**实际输出**
+
+```
+docs/notes.txt: 2
+  python 处理文件
+docs/scope.md: 1
+  - 一个目录（可以有任意层子目录），例如 `python minisearch.py index docs`
+exit=0
+```
+
+**结论**：通过。`ask.py` 同理（`HERE = Path(__file__).resolve().parent`），
+在 `docs/` 里跑 `python ..\ask.py ask "典型使用场景是什么？" --offline` 也能取到 `docs/scope.md:8`。
+
+---
+
 ## 补充：验收会顺手抽查的两条
 
 **参数错误退出码 2**（`argparse` 自动处理）

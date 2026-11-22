@@ -40,6 +40,14 @@ python minisearch.py index docs --json       # 给程序读：只打印一个 JS
 python minisearch.py search docs python --json
 ```
 
+`index.json` 固定放在**脚本所在目录**，`docs/` 也相对脚本目录解析，
+所以不在这个目录里也能跑，输出里的路径仍然是 `docs/notes.txt: 2` 这种相对形式：
+
+```powershell
+cd C:\
+python D:\D1\groups\26级-D1\minisearch.py search docs python
+```
+
 真实输出（`python minisearch.py index docs`）：
 
 ```
@@ -119,4 +127,4 @@ python tools\wizard.py                          # 1 准备 / 2 评测 / 3 错误
 - 只索引 `.md` 和 `.txt`，非 UTF-8 文件跳过并在 stderr 警告，不中断。
 - 检索是「中文两字组合 + 命中行数」排序，不是向量检索；换个说法可能搜不到。
 - 每类资料只取前 3 行，答案跨段落时可能漏。
-- 大目录全量读进内存；`search` 依赖当前目录的 `index.json`。
+- 大目录全量读进内存；`index.json` 固定在脚本目录，与当前工作目录无关。

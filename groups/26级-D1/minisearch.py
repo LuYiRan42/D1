@@ -6,6 +6,9 @@ from pathlib import Path
 import indexer
 import searcher
 
+# index.json 固定放在脚本旁边：在哪个目录敲命令都找得到，不用先 cd 回项目目录
+INDEX_PATH = Path(__file__).resolve().parent / "index.json"
+
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="minisearch")
@@ -25,7 +28,7 @@ def main(argv=None):
 
     if args.command == "index":
         data = indexer.build_index(args.root, args.top)
-        with open("index.json", "w", encoding="utf-8") as f:
+        with open(INDEX_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=True)
         if args.json:
             print(json.dumps(
@@ -36,7 +39,7 @@ def main(argv=None):
             print(f"索引 {len(data['files'])} 个文件 → index.json")
         return 0
 
-    if not Path("index.json").exists():
+    if not INDEX_PATH.exists():
         print("请先运行 index 建立索引", file=sys.stderr)
         return 1
 
@@ -44,8 +47,8 @@ def main(argv=None):
         print("关键词不能为空", file=sys.stderr)
         return 2
 
-    data = json.loads(Path("index.json").read_text(encoding="utf-8"))
-    hits = searcher.search(data, args.keyword)
+    data = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
+    hits = searcher.search(data, args.keyword, base=INDEX_PATH.parent)
     if args.json:
         print(json.dumps(
             {"command": "search", "root": args.root, "keyword": args.keyword,

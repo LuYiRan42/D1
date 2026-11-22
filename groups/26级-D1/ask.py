@@ -22,6 +22,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+# 脚本所在目录：index.json 和 docs/ 都相对它来找，从哪个目录调用都能跑
+HERE = Path(__file__).resolve().parent
+
 SYSTEM_PROMPT = """你是一个只根据资料回答问题的助手。三条硬规则：
 1. 只根据下面给出的资料回答，不许用你自己的知识补充；
 2. 每个结论后面标出处，格式为 file:line，例如 docs/招新.md:12；
@@ -38,8 +41,8 @@ class ApiError(Exception):
     """调用模型时的可读错误，打印信息而不是抛 traceback。"""
 
 
-def load_index(path="index.json"):
-    index_path = Path(path)
+def load_index(path=None):
+    index_path = Path(path) if path else HERE / "index.json"
     if not index_path.exists():
         print("缺少 index.json，请先运行：python minisearch.py index docs/", file=sys.stderr)
         return None
@@ -71,7 +74,10 @@ def find_passages(index, question, top_k=3):
     keys = keywords(question)
     if not keys:
         return []
-    root = Path(index.get("root", "docs"))
+    shown_root = str(index.get("root", "docs")).rstrip("/\\")
+    root = Path(shown_root)
+    if not root.is_absolute():
+        root = HERE / root            # index 里存的是相对路径，按脚本所在目录解析
     ranked = []
     for item in index.get("files", []):
         path = root / item["path"]
@@ -83,7 +89,7 @@ def find_passages(index, question, top_k=3):
             low = line.lower()
             hits = sum(1 for k in keys if k in low)
             if hits:
-                shown = f"{root.as_posix().rstrip('/')}/{item['path']}"
+                shown = f"{shown_root}/{item['path']}"
                 ranked.append((hits, shown, no, line.strip()))
     ranked.sort(key=lambda r: (-r[0], r[1], r[2]))
     return [(path, no, text) for _, path, no, text in ranked[:top_k]]
@@ -204,7 +210,7 @@ def main(argv=None):
     p_ask.add_argument("question")
     p_ask.add_argument("--json", action="store_true", help="输出 JSON")
     p_ask.add_argument("--top-k", type=int, default=3, help="取前几条资料，默认 3")
-    p_ask.add_argument("--index", default="index.json", help="索引文件路径")
+    p_ask.add_argument("--index", default=None, help="索引文件路径，默认用脚本目录下的 index.json")
     p_ask.add_argument("--offline", action="store_true", help="不联网，只打印 Prompt（调试用）")
 
     args = parser.parse_args(argv)
