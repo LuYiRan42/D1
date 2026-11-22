@@ -14,7 +14,7 @@
 ## 二、输入
 
 ```powershell
-python ask.py ask "<问题>" [--json] [--top-k 3] [--index index.json] [--offline]
+python ask.py ask "<问题>" [--json] [--top-k 3] [--index <索引路径>] [--offline]
 ```
 
 | 参数 | 类型 | 默认 | 含义 |
@@ -22,7 +22,7 @@ python ask.py ask "<问题>" [--json] [--top-k 3] [--index index.json] [--offlin
 | `question` | 字符串 | 必填 | 用户的问题 |
 | `--json` | 开关 | 关 | 输出 JSON，给程序读 |
 | `--top-k` | 整数 | 3 | 取前几段资料拼进 Prompt |
-| `--index` | 路径 | `index.json` | 索引文件位置 |
+| `--index` | 路径 | 脚本目录下的 `index.json` | 索引文件位置；给了相对路径就按当前目录解析 |
 | `--offline` | 开关 | 关 | 不联网，只打印将要发送的 Prompt（调试用） |
 
 ## 三、输出
