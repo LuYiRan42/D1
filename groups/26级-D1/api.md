@@ -55,7 +55,20 @@ python ask.py ask "<问题>" [--json] [--top-k 3] [--index <索引路径>] [--of
 ```
 文档里没有
 ```
-不调用 API，退出码 0；`--json` 时为 `{"answer": "文档里没有", "sources": [], "latency": 0.0, "tokens": null}`。
+不调用 API，退出码 0；`--json` 时为：
+
+```json
+{
+  "question": "食堂几点开门",
+  "answer": "文档里没有",
+  "sources": [],
+  "latency": 0.0,
+  "tokens": null
+}
+```
+
+`question` 是问题原样回显（正常回答和拒答都有这一项），方便脚本把输出和问题对上；
+`sources` 为空数组、`tokens` 为 `null`，字段不省略。
 
 ## 四、退出码
 
