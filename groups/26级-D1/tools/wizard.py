@@ -1,4 +1,4 @@
-"""W3 一键助手：准备索引 / 跑 10 条评测 / 跑 4 条错误处理。
+﻿"""W3 一键助手：准备索引 / 跑 10 条评测 / 跑 4 条错误处理。
 
 在 groups/26级-D1/ 目录下双击「开始.bat」运行，或手动：
     python tools/wizard.py
@@ -256,6 +256,19 @@ def main():
         say("[×] 这里没有 ask.py，请把整个 w3-d1 包放进 groups/26级-D1/")
         return 1
 
+    if len(sys.argv) > 1:
+        choice = sys.argv[1]
+        say(f"[i] 直接执行第 {choice} 项")
+        if choice == "1":
+            step_prepare()
+        elif choice == "2":
+            step_eval()
+        elif choice == "3":
+            step_errors()
+        else:
+            say("参数只能是 1 / 2 / 3")
+        return 0
+
     say("\n1. 准备语料和索引（先跑这个）")
     say("2. 跑 10 条评测（要先配好 LLM_API_KEY）")
     say("3. 跑四条错误处理（不用 key）")
@@ -283,3 +296,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

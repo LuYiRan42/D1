@@ -1,10 +1,11 @@
-# minisearch
+# minisearch + ask.py
 
 三人合作的迷你全文检索工具：给一个目录建一张索引表，再按关键词查这张表。
+W3 在它上面加了一张「嘴」：把检索结果交给大模型，只按资料回答并标出处。
 
 - 组别：D1　｜　代码目录：`groups/26级-D1/`
-- 运行环境：Python 3.12（只用标准库：`pathlib`、`json`、`argparse`、`collections`），Windows + PowerShell
-- 不需要安装任何第三方包
+- 运行环境：Python 3.12（W2 只用标准库；W3 可选 `requests`），Windows + PowerShell
+- W3 起需要一个大模型 key（DeepSeek / 通义 / 智谱任选，OpenAI 兼容即可）
 
 ## 目录结构
 
@@ -13,15 +14,21 @@ groups/26级-D1/
 ├── minisearch.py     命令行入口（argparse + 调用下面两个模块）
 ├── indexer.py        遍历目录、统计、生成索引
 ├── searcher.py       查关键词、拼输出
-├── README.md         本文件：字段表 + 用法
+├── ask.py            W3：检索 + 调大模型 + 输出答案与出处
+├── api.md            W3：接口说明（输入/输出/退出码/错误）
+├── eval.md           W3：10 条评测题与真实输出
+├── README.md         本文件
 ├── scope.md          这个工具做什么、不做什么
 ├── tests.md          8 条测试与真实输出
-└── review.md         交叉互评记录
+├── review.md         交叉互评记录
+├── requirements.txt  W3 依赖（requests）
+├── tools/            开发辅助：验题、造素材、假模型、一键助手
+└── docs/             演示语料（含 scope.md 副本与两条边界素材）
 ```
 
-演示素材放在仓库的 `docs/`，测试素材放在 `tests/fixtures/`（都不属于代码目录）。
+测试素材放在 `tests/fixtures/`。
 
-## 三条命令
+## W2：三条命令
 
 在 `groups/26级-D1/` 下执行：
 
@@ -29,12 +36,22 @@ groups/26级-D1/
 python minisearch.py index docs              # 建索引，写出 index.json
 python minisearch.py search docs python      # 查关键词
 python minisearch.py index docs --top 10     # 每个文件保留 10 个高频词（默认 5）
+python minisearch.py index docs --json       # 给程序读：只打印一个 JSON 对象
+python minisearch.py search docs python --json
+```
+
+`index.json` 固定放在**脚本所在目录**，`docs/` 也相对脚本目录解析，
+所以不在这个目录里也能跑，输出里的路径仍然是 `docs/notes.txt: 2` 这种相对形式：
+
+```powershell
+cd C:\
+python D:\D1\groups\26级-D1\minisearch.py search docs python
 ```
 
 真实输出（`python minisearch.py index docs`）：
 
 ```
-索引 2 个文件 → index.json
+索引 4 个文件 → index.json
 ```
 
 真实输出（`python minisearch.py search docs python`）：
@@ -42,65 +59,77 @@ python minisearch.py index docs --top 10     # 每个文件保留 10 个高频�
 ```
 docs/notes.txt: 2
   python 处理文件
+docs/scope.md: 1
+  - 一个目录（可以有任意层子目录），例如 `python minisearch.py index docs`
 ```
 
-## index.json 字段（v1，已冻结）
+真实输出（`python minisearch.py search docs python --json`）：
 
 ```json
 {
+  "command": "search",
   "root": "docs",
-  "files": [
-    {
-      "path": "guide/intro.md",
-      "lines": 2,
-      "words": 4,
-      "chars": 29,
-      "top_words": [["minisearch", 1], ["入门", 1], ["是一个迷你全文检索工具。", 1]]
-    },
-    {
-      "path": "notes.txt",
-      "lines": 2,
-      "words": 4,
-      "chars": 29,
-      "top_words": [["python", 2], ["处理文件", 1], ["也可以写脚本来统计", 1]]
-    }
+  "keyword": "python",
+  "count": 2,
+  "hits": [
+    {"path": "docs/notes.txt", "count": 2, "line": "python 处理文件"},
+    {"path": "docs/scope.md", "count": 1, "line": "- 一个目录（可以有任意层子目录），例如 `python minisearch.py index docs`"}
   ]
 }
 ```
 
-| 字段 | 类型 | 含义 | 示例 |
-| --- | --- | --- | --- |
-| `root` | 字符串 | 建索引时传入的那个目录（原样记录） | `"docs"` |
-| `files` | 数组 | 每个被索引的文件一项 | `[...]` |
-| `files[].path` | 字符串 | **相对 `root`** 的路径，统一用 `/` 分隔 | `"guide/intro.md"` |
-| `files[].lines` | 整数 | 行数（`splitlines()` 的结果） | `2` |
-| `files[].words` | 整数 | 词数（小写后按空白切分） | `4` |
-| `files[].chars` | 整数 | 字符数（`len(文本)`） | `29` |
-| `files[].top_words` | 数组 | `[[词, 次数], ...]`，次数降序、同次数按词升序 | `[["python", 2]]` |
+`--json` 时 stdout 只有那一个 JSON 对象，提示与警告一律走 stderr；退出码与文本模式相同。
 
-**冻结规则**：这张表定下来之后不再改动。要加字段、改名、改类型，先在群里说、三个人同意、改本文件、再改代码。`index.json` 由程序生成，**不手工编辑**。
+## W3：ask.py
 
-## 搜索输出格式
+```powershell
+$env:LLM_API_KEY="你的key"
+$env:LLM_BASE_URL="https://api.deepseek.com"   # 可选
+$env:LLM_MODEL="deepseek-chat"                 # 可选
 
-每个命中的文件占两行：
+python ask.py ask "典型使用场景是什么？"
+python ask.py ask "典型使用场景是什么？" --json
+```
 
-1. 第一行：`路径: 次数`（路径是 `root` + 索引里的 `path`，用 `/` 分隔）
-2. 第二行：两个空格缩进的第一处匹配行（原文 `strip()` 后，超过 80 字截断；该文件没有可显示的行时省略）
+真实输出：
 
-文件之间按命中次数降序，同次数按路径升序。没有命中时只打印一行 `没有找到`。
+```
+典型使用场景是：作业写完了想确认「某个词到底在哪个文件里出现过」，或者「哪份文档里出现得最多」。(docs/scope.md:8)
+
+来源：docs/scope.md:8、docs/scope.md:25
+```
+
+流程：读 `index.json` → 关键词检索取前 3 行 → 与 `file:line` 一起拼进 Prompt → 调 chat completions
+→ 输出答案与来源；**检索零命中时直接回答「文档里没有」，不调用模型**。
+
+接口、错误码见 [`api.md`](api.md)；五条错误的实测输出（命令、退出码、stdout/stderr 分栏）见
+[`错误处理记录.md`](错误处理记录.md)；10 条评测见 [`eval.md`](eval.md)。
+
+评测想自己复跑一遍：配好 `LLM_API_KEY` 后在本目录执行 `python tools\wizard.py`，选第 2 步，
+脚本会真调模型把 10 条题重新跑一遍，生成 `eval-filled.md`（表格填好的版本）和 `评测输出.txt`（原始输出）。
+没有 key 时可以先跑 `python tools\check_eval.py eval.md index.json`，只验证「期望出处能不能被检索命中」，不花钱。
+
+## 评测（测出来的结论）
+
+10 条：5 条能答、3 条该拒答、2 条边界。结果 **10 / 10 通过**，每条都带 `file:line` 出处。
+
+```powershell
+python tools\check_eval.py eval.md index.json   # 只验检索，不花钱
+python tools\wizard.py                          # 1 准备 / 2 评测 / 3 错误处理
+```
 
 ## 退出码
 
 | 退出码 | 含义 |
 | --- | --- |
-| `0` | 成功：索引写好了，或者搜索有命中 |
-| `1` | 目录不存在 / 还没建索引 / 搜索没有命中 |
-| `2` | 参数错误（`argparse` 自动给出，例如没写子命令） |
+| `0` | 成功：索引写好了 / 搜索有命中 / 问题得到回答或正确拒答 |
+| `1` | 目录不存在、还没建索引、没有命中、缺 key、网络或模型报错 |
+| `2` | 参数错误（`argparse` 自动给出） |
 
 ## 已知限制
 
-- 中文不分词。`words` 按空白切分，所以一整段中文只算 1 个词；`top_words` 里出现的中文条目也是整串。`search` 的关键词匹配是子串包含，中文可以正常查。
-- 只索引 `.md` 和 `.txt` 两种后缀，其余文件跳过。
-- 非 UTF-8 文件会被跳过，并在 stderr 打一行警告，**不中断**整次索引。
-- 大文件是全量读进内存再统计的，超大目录会慢、会占内存。
-- `search` 依赖当前目录下的 `index.json`，换目录要先重新 `index`。
+- 中文不做分词，`top_words` 只到单字：英文/数字按词统计，中文每个字算一条，`words` 仍按空白切分。`search` 用子串包含，中文词组能查。
+- 只索引 `.md` 和 `.txt`，非 UTF-8 文件跳过并在 stderr 警告，不中断。
+- 检索是「中文两字组合 + 命中行数」排序，不是向量检索；换个说法可能搜不到。
+- 每类资料只取前 3 行，答案跨段落时可能漏。
+- 大目录全量读进内存；`index.json` 固定在脚本目录，与当前工作目录无关。

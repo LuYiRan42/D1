@@ -1,4 +1,4 @@
-﻿"""W3 最小闭环：检索 -> 拼 Prompt -> 调 LLM -> 回答 + 出处。
+"""W3 最小闭环：检索 -> 拼 Prompt -> 调 LLM -> 回答 + 出处。
 
 只依赖 index.json（W2 的产物）和三个环境变量：
     LLM_API_KEY   必填
@@ -22,6 +22,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+# 脚本所在目录：index.json 和 docs/ 都相对它来找，从哪个目录调用都能跑
+HERE = Path(__file__).resolve().parent
+
 SYSTEM_PROMPT = """你是一个只根据资料回答问题的助手。三条硬规则：
 1. 只根据下面给出的资料回答，不许用你自己的知识补充；
 2. 每个结论后面标出处，格式为 file:line，例如 docs/招新.md:12；
@@ -30,13 +33,16 @@ SYSTEM_PROMPT = """你是一个只根据资料回答问题的助手。三条硬�
 # 中文两字组合里出现这些词就不算关键词，避免「什么」「怎么」把无关行捞出来
 STOP_GRAMS = {"什么", "怎么", "如何", "为什", "哪些", "哪个", "是否", "可以", "请问", "一下", "我们", "他们"}
 
+# 「没装 requests」这条提示只打一次，重试时不重复刷屏
+_WARNED_URLLIB = False
+
 
 class ApiError(Exception):
     """调用模型时的可读错误，打印信息而不是抛 traceback。"""
 
 
-def load_index(path="index.json"):
-    index_path = Path(path)
+def load_index(path=None):
+    index_path = Path(path) if path else HERE / "index.json"
     if not index_path.exists():
         print("缺少 index.json，请先运行：python minisearch.py index docs/", file=sys.stderr)
         return None
@@ -68,7 +74,10 @@ def find_passages(index, question, top_k=3):
     keys = keywords(question)
     if not keys:
         return []
-    root = Path(index.get("root", "docs"))
+    shown_root = str(index.get("root", "docs")).rstrip("/\\")
+    root = Path(shown_root)
+    if not root.is_absolute():
+        root = HERE / root            # index 里存的是相对路径，按脚本所在目录解析
     ranked = []
     for item in index.get("files", []):
         path = root / item["path"]
@@ -80,7 +89,7 @@ def find_passages(index, question, top_k=3):
             low = line.lower()
             hits = sum(1 for k in keys if k in low)
             if hits:
-                shown = f"{root.as_posix().rstrip('/')}/{item['path']}"
+                shown = f"{shown_root}/{item['path']}"
                 ranked.append((hits, shown, no, line.strip()))
     ranked.sort(key=lambda r: (-r[0], r[1], r[2]))
     return [(path, no, text) for _, path, no, text in ranked[:top_k]]
@@ -113,7 +122,10 @@ def _post_json(url, headers, body, timeout):
         except ValueError:
             return resp.status_code, {}
 
-    print("提示：没装 requests，本次用标准库 urllib；建议 pip install -r requirements.txt", file=sys.stderr)
+    global _WARNED_URLLIB
+    if not _WARNED_URLLIB:
+        print("提示：没装 requests，本次用标准库 urllib；建议 pip install -r requirements.txt", file=sys.stderr)
+        _WARNED_URLLIB = True
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=raw, headers=headers, method="POST")
     try:
@@ -198,7 +210,7 @@ def main(argv=None):
     p_ask.add_argument("question")
     p_ask.add_argument("--json", action="store_true", help="输出 JSON")
     p_ask.add_argument("--top-k", type=int, default=3, help="取前几条资料，默认 3")
-    p_ask.add_argument("--index", default="index.json", help="索引文件路径")
+    p_ask.add_argument("--index", default=None, help="索引文件路径，默认用脚本目录下的 index.json")
     p_ask.add_argument("--offline", action="store_true", help="不联网，只打印 Prompt（调试用）")
 
     args = parser.parse_args(argv)
@@ -227,7 +239,8 @@ def main(argv=None):
     try:
         data = call_llm(messages)
     except ApiError as exc:
-        print(str(exc), file=sys.stderr)
+        if str(exc):
+            print(str(exc), file=sys.stderr)
         return 1
     latency = time.perf_counter() - started
 
