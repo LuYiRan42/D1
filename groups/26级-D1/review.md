@@ -1,82 +1,107 @@
-# review.md — 交叉互评
+# review.md — 交叉互评（D1 评 D2）
 
 - 组别：**D1**（陆奕然 / 胡轩也 / 李福程）
 - 互评对象：**D2**（倪生浩 / 李科学 / 史智轩）
-- 代码来源：课程仓库 `yangtianlong407-afk/XiW` 的 **PR #15 `Nishenghao:w2-d2`**（`groups/26级-D2/`，head `48d8519`），不是猜的，下面每条都能对上文件行。
-- 状态：**已完成**（W2 时我们只留了空壳并写了原因，这一版把两条都补上了）。
+- 代码来源：`https://github.com/Nishenghao/XiW/tree/w2-d2/groups/26级-D2`，分支 `w2-d2`，head `48d8519`（用 `git ls-remote` 核对过）。下面每条都标了文件行号，可以直接对着看，不是凭印象写的。
+- 状态：**已完成**。W2 交的时候这一节只写了「未取得 D2 仓库地址」，这一版把两条都补上了。
 
 ---
 
-## 一、我们给 D2 的两条
+## 一、我们给 D2 的意见
 
-### 1. 做得好的：`top_words` 一开始就按「英文分词、中文单字」统计
+### 意见一（做得好的）：`top_words` 的取词口径从一开始就是对的
 
-他们的 `analyze_file` 里是这么取词的（`groups/26级-D2/minisearch.py:43`）：
+`groups/26级-D2/minisearch.py:43`：
 
 ```python
 text = re.findall(r'[a-zA-Z]+', context.lower()) + re.findall(r'[\u4e00-\u9fa5]', context)
 ```
 
-英文按连续字母切、中文按单字切，`top_words` 直接就是对的。
-这正是我们 W2 被要求返工的点——我们一开始写的是 `text.lower().split()`，中文整串算一个词，
-`index.json` 里出现过 `"是一个迷你全文检索工具。"` 这种整句当词的条目（见我们 `scope.md` 第 40 行的说明）。
-他们还顺手兜了 `PermissionError`（`minisearch.py:38`），这一点我们没做。这一条我们认输。
+英文按连续字母切、中文按单字切，`top_words` 直接就是任务书要的形态：中文两个字「索引」不会整段算成一个词。
 
-### 2. 可以更好的：`index.json` 里存了绝对路径，换个目录/换台机器就静默搜不到
+这正是我们 W2 被打回的点。我们一开始写的是 `text.lower().split()`，`index.json` 里出现过 `"是一个迷你全文检索工具。"` 这种整句当词的条目，返工之后才改成一样的口径。这一条我们不如他们。
 
-`build_index` 写索引时是（`groups/26级-D2/minisearch.py:65`）：
+另外两处他们做得比我们早：
+
+- `minisearch.py:38-40` 兜了 `PermissionError`，我们只兜了 `UnicodeDecodeError`；
+- `minisearch.py:7` 的 `INDEX_PATH = Path(__file__).resolve().parent / "index.json"`——`index.json` 按脚本目录定位，换个工作目录也能跑。他们给我们的第一条意见提的正是这个要求，他们先在自己代码里做到了。
+
+### 意见二（问题，影响验收）：`index.json` 的 `root` 存的是绝对路径，别人 clone 下来必然搜不到，而且不报错
+
+`groups/26级-D2/minisearch.py:65`：
 
 ```python
 index = {"root": root.resolve().as_posix(), "files": files}
 ```
 
-`root.resolve()` 把 `docs` 变成了绝对路径，于是仓库里的 `index.json` 长这样：
+`root.resolve()` 把 `docs` 变成了绝对路径。于是提交进仓库的 `index.json` 长这样：
 
 ```json
 "root": "C:/Users/NiShh/Desktop/XiW/groups/26级-D2/docs"
 ```
 
-这带来两个问题：
+**他们自己的 README 写的是相对路径。** `groups/26级-D2/README.md:20-22` 的字段示例是：
 
-1. **换台机器 clone 下来，`search` 会静默失败**。`search()` 里读文件失败的分支是
-   `except OSError: continue`（`minisearch.py:95-96`），所有文件都被 `continue` 掉之后
-   `results` 是空的，于是走到 `print(f'没有找到 "{keyword}"')`（`minisearch.py:114`），
-   **退出码还是 0**。用户看到的是「没搜到」，而不是「索引路径不对」。
-2. 本机用户名 `NiShh` 被写进了提交进仓库的文件里（他们 `tests.md` 第 40、49 行的输出也能直接看到）。
-
-**我们实测过**：把 `groups/26级-D2/` 整个复制到另一个目录 `D:\社团\_check\d2run`，
-不重新建索引，直接跑
-
-```powershell
-python minisearch.py search "python"
+```json
+{
+  "root": "docs",
+  "files": [
 ```
 
-得到：
+代码和文档各说一套：照着 README 写代码的人会以为里面是 `docs`，实际拿到的是作者本机的绝对路径。
+
+**后果一：任何人 clone 下来直接 `search`，一定搜不到，而且退出码是 0。**
+
+`search()` 拼路径用的是 `file_path = root / record["path"]`（`minisearch.py:91`），这个绝对路径在别人机器上不存在，`open` 抛 `OSError`，被 `except OSError: continue` 吞掉（`:95-96`）；所有文件都被 `continue` 掉之后 `results` 为空，程序走到 `print(f'没有找到 "{keyword}"')`（`:113-115`）就 `return` 了。
+
+用户看到的是「这个词不存在」，不是「索引路径不对」；脚本拿到的退出码还是 0，没法靠它判断是搜空了还是索引坏了。
+
+我们实测过——把 `groups/26级-D2/` 原样拷到 `D:\社团\_check\d2verify`，不重新建索引：
 
 ```
+$ python minisearch.py search "python"
 没有找到 "python"
-
 exit=0
 ```
 
-在原目录跑同样的命令是 `sub/b.txt: 3` + `a.md: 1`。重新 `index` 之后恢复，但输出变成了
-`D:/社团/_check/d2run/docs/sub/b.txt: 3`，仍然是绝对路径。
+而作者本机上同一条命令输出的是 `.../docs/sub/b.txt: 3` 和 `.../docs/a.md: 1`。
 
-**建议**：`root` 存相对路径（`docs`），读的时候按脚本目录拼：
+**同一份仓库、同一条命令，结果是「两条命中」还是「搜不到」，只取决于你在谁的电脑上跑。**
 
-```python
-INDEX_PATH = Path(__file__).resolve().parent / "index.json"
-root = Path(index["root"])          # "docs"
-if not root.is_absolute():
-    root = INDEX_PATH.parent / root
+**后果二：输出的路径格式不符合任务书。** 重新 `index` 之后能搜到了，但打印出来是：
+
+```
+D:/社团/_check/d2verify/docs/sub/b.txt: 3
+  第1行: python
 ```
 
-顺带输出就变成任务书要求的 `docs/sub/b.txt: 3` 这种形式了。
+任务书要求的是 `docs/guide/intro.md: 3` 这种相对路径 + 缩进匹配行。绝对路径又长又暴露本机用户名——`NiShh` 现在明晃晃地出现在提交进仓库的 `index.json` 里，以及 `tests.md` 第 40、49、56 行贴的输出里。
 
-### 附带一条（不影响验收，供参考）
+**建议**：`root` 存成 `docs`，读取时按脚本目录补全，显示时用记录里的相对串：
 
-`--json` 只加在了 `index` 子命令上（`minisearch.py:130`），`search` 子命令没有
-（`minisearch.py:132-133`）。W2 补件要求两个子命令都能给程序读，`search` 这边补一个会更好。
+```python
+root = Path(index["root"])
+if not root.is_absolute():
+    root = INDEX_PATH.parent / root
+...
+print(f"{record['path']}: {count}")
+```
+
+### 附带三条（不影响主要结论，供参考）
+
+1. **`--json` 只做了一半**：`index` 子命令有 `--json`（`minisearch.py:130`），`search` 没有——`:132-133` 只注册了 `keyword` 一个参数。W2 补件要求「补 `--json`」是为了让别的程序读结果，`search` 这边更该有。
+
+2. **README 的函数签名和代码对不上**：`README.md:37-39` 写的是
+
+   ```python
+   def iter_files(root: Path)                    -> list[Path]
+   def analyze_file(root: Path, file_path: Path) -> dict
+   def build_index(root: Path, paths: list[Path])-> None
+   ```
+
+   实际代码是 `analyze_file(root, top, file_path)`（`minisearch.py:29`）、`build_index(root, top, js, paths)`（`:56`），而且 `iter_files` 返回的是 `list[str]`（`:24` 里已经 `as_posix()` 转过了），不是 `list[Path]`。README 是他们唯一的接口文档，签名错了别人没法照着接。
+
+3. **`index` 没有 `--out`，跑一次别的目录就把正式索引冲掉**：`build_index` 无条件写 `INDEX_PATH`（`minisearch.py:66`）。我们实测，在已有 `index.json` 的目录里执行 `python minisearch.py index tmp_empty`，`index.json` 立刻被换成 `{"root": ".../tmp_empty", "files": []}`，原来的索引没了。他们 `tests.md` 第 2 条（空目录测试）就会踩到这个问题。加个 `--out`，或者「目标目录没有可索引文件时不覆盖已有索引」，都能避免。
 
 ---
 
@@ -92,7 +117,7 @@ if not root.is_absolute():
 >     3. 在子目录执行搜索：`python ../minisearch.py search ../docs/ python`
 > *   **期望 vs 实际**：
 >     *   期望：应该能正常搜出结果。
->     *   实际：报错提示"请先运行 index 建立索引"或抛出路径异常。
+>     *   实际：报错提示“请先运行 index 建立索引”或抛出路径异常。
 
 > **使用问题**
 > *   **现象**：无法检索到子目录中的文件（如 `docs/guide/intro.md` 搜不到）。
@@ -100,8 +125,7 @@ if not root.is_absolute():
 
 ### 我们对第 1 条的处理：属实，已修
 
-我们的 `index.json` 原来是按「当前工作目录」找的（`open("index.json")`），
-在 `docs/` 里执行确实会报「请先运行 index 建立索引」。这一版改成固定按脚本目录找：
+我们的 `index.json` 原来是按「当前工作目录」找的（`open("index.json")`），在 `docs/` 里执行确实会报「请先运行 index 建立索引」。这一版改成固定按脚本目录找：
 
 - `minisearch.py`：新增 `INDEX_PATH = Path(__file__).resolve().parent / "index.json"`，读和写都用它；
 - `searcher.search(index, keyword, base=None)` 新增 `base` 参数，显示路径仍是 `docs/xxx.md`；
