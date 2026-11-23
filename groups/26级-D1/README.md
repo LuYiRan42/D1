@@ -4,7 +4,8 @@
 W3 在它上面加了一张「嘴」：把检索结果交给大模型，只按资料回答并标出处。
 
 - 组别：D1　｜　代码目录：`groups/26级-D1/`
-- 运行环境：Python 3.12（W2 只用标准库；W3 可选 `requests`），Windows + PowerShell
+- 运行环境：Python 3.9 及以上（开发与实测在 3.12 上做的，代码没有用 3.9 之后的新语法），Windows + PowerShell
+- W2 只用标准库；W3 可选 `requests`——没装也能跑，会自动退回标准库 `urllib`
 - W3 起需要一个大模型 key（DeepSeek / 通义 / 智谱任选，OpenAI 兼容即可）
 
 ## 目录结构
@@ -17,11 +18,13 @@ groups/26级-D1/
 ├── ask.py            W3：检索 + 调大模型 + 输出答案与出处
 ├── api.md            W3：接口说明（输入/输出/退出码/错误）
 ├── eval.md           W3：10 条评测题与真实输出
+├── 错误处理记录.md    W3：五条错误的实测输出（命令/退出码/stdout/stderr）
+├── 跑通记录.md       胡轩也照本 README 独立跑一遍的记录与提出的卡点
 ├── README.md         本文件
 ├── scope.md          这个工具做什么、不做什么
-├── tests.md          8 条测试与真实输出
+├── tests.md          9 条测试与真实输出
 ├── review.md         交叉互评记录
-├── requirements.txt  W3 依赖（requests）
+├── requirements.txt  W3 依赖（requests，可选）
 ├── tools/            开发辅助：验题、造素材、假模型、一键助手
 └── docs/             演示语料（含 scope.md 副本与两条边界素材）
 ```
@@ -53,6 +56,15 @@ python D:\D1\groups\26级-D1\minisearch.py search docs python
 ```
 索引 4 个文件 → index.json
 ```
+
+`docs/` 里有 5 个文件，其中 `docs/gbk.txt` 是 GBK 编码，读不了会被跳过，
+**所以显示 4 个**，stderr 会多一行警告：
+
+```
+警告：跳过 docs\gbk.txt(UnicodeDecodeError)
+```
+
+跳过不算失败，退出码仍是 `0`；被跳过的文件不会出现在 `index.json` 里。
 
 真实输出（`python minisearch.py search docs python`）：
 
@@ -89,7 +101,15 @@ $env:LLM_MODEL="deepseek-chat"                 # 可选
 
 python ask.py ask "典型使用场景是什么？"
 python ask.py ask "典型使用场景是什么？" --json
+python ask.py ask "典型使用场景是什么？" --offline   # 不联网，只打印将要发送的 Prompt
 ```
+
+`--offline` 用来检查 Prompt 拼得对不对：把将要发给模型的内容原样打印出来，
+但**不读 key、不发请求、不花钱**，改 Prompt 时先看它最省事。
+
+没装 `requests` 不影响使用：`ask.py` 会自动退回标准库 `urllib`，回答、退出码、
+错误提示都和装了的时候一样，只在 stderr 多一行提示。装上更好（`pip install -r requirements.txt`），
+超时和异常分类更细。
 
 真实输出：
 
@@ -111,7 +131,7 @@ python ask.py ask "典型使用场景是什么？" --json
 
 ## 评测（测出来的结论）
 
-10 条：5 条能答、3 条该拒答、2 条边界。结果 **10 / 10 通过**，每条都带 `file:line` 出处。
+10 条：5 条能答、3 条该拒答、2 条边界。每条都带 `file:line` 出处。
 
 ```powershell
 python tools\check_eval.py eval.md index.json   # 只验检索，不花钱
