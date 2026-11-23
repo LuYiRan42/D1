@@ -147,7 +147,7 @@ def _post_json(url, headers, body, timeout):
 
 def call_llm(messages, timeout=30):
     """发一次请求；超时、连接失败、5xx 各重试一次。"""
-    key = os.environ.get("LLM_API_KEY")
+    key = os.environ.get("LLM_API_KEY", "").strip()
     if not key:
         print("缺少 LLM_API_KEY。设置方法：", file=sys.stderr)
         print('  PowerShell:  $env:LLM_API_KEY="你的key"', file=sys.stderr)
@@ -155,8 +155,21 @@ def call_llm(messages, timeout=30):
         print("  （key 不要写进代码，也不要提交进仓库）", file=sys.stderr)
         raise ApiError("")
 
-    base = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com").rstrip("/")
-    model = os.environ.get("LLM_MODEL", "deepseek-chat")
+    base = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com").strip().rstrip("/")
+    model = os.environ.get("LLM_MODEL", "deepseek-chat").strip()
+
+    # 环境变量里混进中文时（最常见：把文档里的「你的key」占位符原样粘进来），
+    # HTTP 头按 latin-1 编码会直接抛 UnicodeEncodeError，报错完全看不懂。这里先挡掉。
+    for label, value in (("LLM_API_KEY", key), ("LLM_BASE_URL", base), ("LLM_MODEL", model)):
+        if not value.isascii():
+            shown = value if len(value) <= 12 else value[:12] + "…"
+            print(f"环境变量 {label} 里有非 ASCII 字符，请求发不出去。", file=sys.stderr)
+            print("  最常见的原因是照抄了文档里的占位符（比如「你的key」），或者多粘了中文说明。", file=sys.stderr)
+            print(f"  当前值：{shown}", file=sys.stderr)
+            print("  请换成服务商给的真实值，例如：", file=sys.stderr)
+            print('    $env:LLM_API_KEY="sk-xxxxxxxxxxxxxxxx"', file=sys.stderr)
+            raise ApiError("")
+
     url = f"{base}/chat/completions"
     body = {"model": model, "messages": messages, "temperature": 0}
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
