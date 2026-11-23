@@ -11,7 +11,7 @@
 |---|---|---|---|---|---|
 | 1 | 典型使用场景是什么？ | 能答 | 作业写完后查某个词在哪个文件出现、哪份文档出现最多（docs/scope.md:8） | 典型场景是：作业写完了想确认「某个词到底在哪个文件里出现过」，或者「哪份文档里出现得最多」。(docs/scope.md:8)；来源 docs/scope.md:8、docs/scope.md:25 | 通过 |
 | 2 | 支持哪些文件后缀？ | 能答 | .md 和 .txt，大小写不敏感（docs/scope.md:13） | 支持的后缀为 `.md` 和 `.txt`，大小写不敏感（`.MD` 也算）。(docs/scope.md:13)；来源 docs/scope.md:13、docs/scope.md:19、docs/notes.txt:1 | 通过 |
-| 3 | 中文为什么不分词？ | 能答 | 不引入 jieba 之类的分词库；top_words 里中文按单字统计、英文按词统计，words 仍按空白切分（docs/scope.md:31） | 中文不分词的原因：不引入 jieba 之类的分词库；`top_words` 里中文按单字统计、英文按词统计，`words` 仍只按空白切分（docs/scope.md:31）。另外，中文只到单字级别，`top_words` 里的「的」「是」这类高频单字会占掉名额，看不出词组（docs/scope.md:40）。；来源 docs/scope.md:31、docs/scope.md:40 | 通过 |
+| 3 | 中文为什么不分词？ | 能答 | 不引入 jieba 之类的分词库；top_words 里中文按单字统计、英文按词统计，words 仍按空白切分（docs/scope.md:31） | 中文不分词的原因：不引入 jieba 之类的分词库，中文按整串统计；`words` 只按空白切分（docs/scope.md:31）。此外，中文不分词导致词频统计对中文没有参考价值，只对英文/代码标识符有意义（docs/scope.md:40）。；来源 docs/scope.md:40、docs/scope.md:31 | 否 |
 | 4 | 8 条测试里几条是异常场景？ | 能答 | 3 条：目录不存在、空目录/空文件、非 UTF-8（docs/scope.md:25） | 8 条测试里有 3 条是异常场景（目录不存在、空目录/空文件、非 UTF-8）。出处：docs/scope.md:25；来源 docs/scope.md:25、docs/scope.md:8 | 通过 |
 | 5 | 有没有 Web 界面？ | 能答 | 不提供 Web 界面和 HTTP 接口，只有命令行（docs/scope.md:34） | 没有 Web 界面。文档明确写着「不提供 Web 界面、不提供 HTTP 接口 —— 只有命令行」（docs/scope.md:34）。；来源 docs/scope.md:34、docs/scope.md:40 | 通过 |
 | 6 | 食堂几点开门？ | 该拒答 | 文档里没有（零命中，不调 API） | 文档里没有 | 通过 |
@@ -19,6 +19,17 @@
 | 8 | 社团的指导老师是谁？ | 该拒答 | 文档里没有 | 文档里没有 | 通过 |
 | 9 | docs/empty.md 里写了什么？ | 边界 | 文档里没有（空文件，索引记 0 行） | 文档里没有。；来源 docs/scope.md:1、docs/scope.md:3、docs/scope.md:7 | 通过 |
 | 10 | docs/gbk.txt 里写了什么？ | 边界 | 文档里没有（非 UTF-8，索引时已跳过） | 文档里没有。；来源 docs/scope.md:3、docs/scope.md:7、docs/scope.md:12 | 通过 |
+
+> **关于第 3 题的「否」**
+> 这一格是照 `评测输出.txt` 原样抄的，没有改动模型的话。它引用的是 `scope.md` 改成
+> 「`top_words` 按单字统计」**之前**的原文，说明那次运行用的是旧语料（`docs/scope.md` 还没同步）。
+> 现行 `docs/scope.md:31` 写的是「中文按单字统计、英文按词统计」，所以这条回答与现在的文档对不上，
+> 按「答案对 + 出处对」的标准判为不通过。
+>
+> 修法：`git pull` 拿到最新 `docs/scope.md` 后单独重跑这一题——
+> `python ask.py ask "中文为什么不分词？" --json`，
+> 把输出替换掉这格，再把「否」改回「通过」。
+> 其余 9 条（1、2、4、5、6、7、8、9、10）的「实际」与 `评测输出.txt` 逐字一致。
 
 ## 二、判分口径
 
